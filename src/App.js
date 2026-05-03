@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './App.css';
 
 // Exercise Library
@@ -50,7 +50,7 @@ const splitTemplates = {
   }
 };
 
-// Vector Icons - Updated
+// Vector Icons (unchanged)
 const IconWorkout = ({ size = 22 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 4L8 6" />
@@ -150,7 +150,7 @@ function App() {
     const saved = localStorage.getItem('darkMode');
     return saved === 'true';
   });
-  
+
   const [page, setPage] = useState('home');
   const [splits, setSplits] = useState(() => {
     const saved = localStorage.getItem('splits');
@@ -177,24 +177,53 @@ function App() {
     });
     return defaultSplits;
   });
-  
+
   const [activeSplitId, setActiveSplitId] = useState(() => {
     return localStorage.getItem('activeSplit') || 'ppl';
   });
-  
+
   const [logs, setLogs] = useState(() => {
     const saved = localStorage.getItem('logs');
     return saved ? JSON.parse(saved) : [];
   });
-  
+
   const [editingSplit, setEditingSplit] = useState(null);
   const [showPicker, setShowPicker] = useState(null);
   const [activeLog, setActiveLog] = useState(null);
-  const [modals, setModals] = useState({ addSplit: false, addDay: false, delete: null, customSplit: false });
-  const [newSplitType, setNewSplitType] = useState('');
+  const [modals, setModals] = useState({ 
+    addSplit: false, 
+    addDay: false, 
+    delete: null, 
+    customSplit: false, 
+    splitDropdownOpen: false,
+    clearHistory: false
+  });
   const [newDayName, setNewDayName] = useState('');
   const [customSplitName, setCustomSplitName] = useState('');
-  
+
+  // Refs for click outside detection
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (modals.splitDropdownOpen && dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setModals(prev => ({ ...prev, splitDropdownOpen: false }));
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [modals.splitDropdownOpen]);
+
+  // Ensure activeSplitId always points to a valid split
+  useEffect(() => {
+    const splitIds = Object.keys(splits);
+    if (splitIds.length > 0 && (!activeSplitId || !splits[activeSplitId])) {
+      const preferredId = splitIds.includes('ppl') ? 'ppl' : splitIds[0];
+      setActiveSplitId(preferredId);
+    }
+  }, [splits, activeSplitId]);
+
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode);
     if (darkMode) {
@@ -203,7 +232,7 @@ function App() {
       document.body.classList.remove('dark');
     }
   }, [darkMode]);
-  
+
   const getSortedSplits = () => {
     const order = ['fb', 'bro', 'ul', 'ppl'];
     const splitList = Object.values(splits);
@@ -211,60 +240,29 @@ function App() {
     const orderedSplits = order.map(key => splits[key]).filter(Boolean);
     return [...orderedSplits, ...customSplits];
   };
-  
+
   useEffect(() => {
     localStorage.setItem('splits', JSON.stringify(splits));
   }, [splits]);
-  
+
   useEffect(() => {
     localStorage.setItem('activeSplit', activeSplitId);
   }, [activeSplitId]);
-  
+
   useEffect(() => {
     localStorage.setItem('logs', JSON.stringify(logs));
   }, [logs]);
-  
+
   const activeSplit = splits[activeSplitId];
   const hasActiveSplit = activeSplit && Object.keys(splits).length > 0;
-  
-  const getToday = () => {
+
+  const today = useMemo(() => {
     if (!hasActiveSplit || !activeSplit?.days.length) return null;
     const idx = (new Date().getDay() - 1 + activeSplit.days.length) % activeSplit.days.length;
     return activeSplit.days[idx];
-  };
-  
-  const today = getToday();
-  
-  const addSplitFromTemplate = () => {
-    if (!newSplitType) return;
-    const template = splitTemplates[newSplitType];
-    const id = template.type;
-    if (splits[id]) {
-      setModals({ ...modals, addSplit: false });
-      setNewSplitType('');
-      return;
-    }
-    const newSplit = {
-      id: id,
-      name: newSplitType,
-      type: template.type,
-      days: template.days.map((day, idx) => ({
-        id: Date.now().toString() + idx,
-        name: day.name,
-        exercises: day.exercises.map((ex, exIdx) => ({
-          id: Date.now().toString() + idx + exIdx,
-          name: ex,
-          sets: 3,
-          reps: '8-12'
-        }))
-      }))
-    };
-    setSplits({ ...splits, [id]: newSplit });
-    setActiveSplitId(id);
-    setNewSplitType('');
-    setModals({ ...modals, addSplit: false });
-  };
-  
+  }, [hasActiveSplit, activeSplit]);
+
+  // Modified: addCustomSplit now navigates to edit page
   const addCustomSplit = () => {
     if (!customSplitName.trim()) return;
     const id = 'custom_' + Date.now();
@@ -277,10 +275,11 @@ function App() {
     setSplits({ ...splits, [id]: newSplit });
     setActiveSplitId(id);
     setEditingSplit(newSplit);
+    setPage('splits');         // go to edit page
     setCustomSplitName('');
     setModals({ ...modals, addSplit: false, customSplit: false });
   };
-  
+
   const deleteSplit = (id) => {
     const newSplits = { ...splits };
     delete newSplits[id];
@@ -291,12 +290,12 @@ function App() {
     }
     setModals({ ...modals, delete: null });
   };
-  
+
   const updateSplit = (split) => {
     setSplits({ ...splits, [split.id]: split });
     setEditingSplit(null);
   };
-  
+
   const addDay = () => {
     if (!newDayName.trim()) return;
     const newSplit = { ...editingSplit };
@@ -305,21 +304,21 @@ function App() {
     setNewDayName('');
     setModals({ ...modals, addDay: false });
   };
-  
+
   const deleteDay = (dayId) => {
     const newSplit = { ...editingSplit };
     newSplit.days = newSplit.days.filter(d => d.id !== dayId);
     setEditingSplit(newSplit);
     setModals({ ...modals, delete: null });
   };
-  
+
   const updateDayName = (dayId, name) => {
     const newSplit = { ...editingSplit };
     const day = newSplit.days.find(d => d.id === dayId);
     if (day) day.name = name;
     setEditingSplit(newSplit);
   };
-  
+
   const addExercise = (dayId, exerciseName) => {
     const newSplit = { ...editingSplit };
     const day = newSplit.days.find(d => d.id === dayId);
@@ -334,7 +333,7 @@ function App() {
     setEditingSplit(newSplit);
     setShowPicker(null);
   };
-  
+
   const deleteExercise = (dayId, exerciseId) => {
     const newSplit = { ...editingSplit };
     const day = newSplit.days.find(d => d.id === dayId);
@@ -342,7 +341,7 @@ function App() {
     setEditingSplit(newSplit);
     setModals({ ...modals, delete: null });
   };
-  
+
   const updateExercise = (dayId, exerciseId, field, value) => {
     const newSplit = { ...editingSplit };
     const day = newSplit.days.find(d => d.id === dayId);
@@ -350,7 +349,7 @@ function App() {
     if (ex) ex[field] = field === 'sets' ? parseInt(value) || 0 : value;
     setEditingSplit(newSplit);
   };
-  
+
   const startLog = (workout) => {
     setActiveLog({
       ...workout,
@@ -358,30 +357,60 @@ function App() {
       splitName: activeSplit.name,
       exercises: workout.exercises.map(ex => ({
         ...ex,
+        unit: 'lbs',
         sets: Array(ex.sets).fill().map(() => ({ weight: '', reps: '', done: false }))
       }))
     });
   };
-  
+
   const updateLog = (exIdx, setIdx, field, value) => {
     const newLog = { ...activeLog };
     newLog.exercises[exIdx].sets[setIdx][field] = value;
     setActiveLog(newLog);
   };
-  
+
   const toggleDone = (exIdx, setIdx) => {
     const newLog = { ...activeLog };
     newLog.exercises[exIdx].sets[setIdx].done = !newLog.exercises[exIdx].sets[setIdx].done;
     setActiveLog(newLog);
   };
-  
+
   const saveLog = () => {
     setLogs([activeLog, ...logs]);
     setActiveLog(null);
     setPage('history');
   };
-  
+
+  const clearAllHistory = () => {
+    setLogs([]);
+    localStorage.setItem('logs', JSON.stringify([]));
+    setModals(prev => ({ ...prev, clearHistory: false }));
+  };
+
   if (activeLog) {
+    const convertWeight = (value, fromUnit, toUnit) => {
+      if (!value) return '';
+      const num = parseFloat(value);
+      if (isNaN(num)) return '';
+      if (fromUnit === 'lbs' && toUnit === 'kg') return (num / 2.2046).toFixed(1);
+      if (fromUnit === 'kg' && toUnit === 'lbs') return (num * 2.2046).toFixed(1);
+      return value;
+    };
+
+    const toggleUnit = (exIdx) => {
+      const newLog = { ...activeLog };
+      const exercise = newLog.exercises[exIdx];
+      const oldUnit = exercise.unit || 'lbs';
+      const newUnit = oldUnit === 'lbs' ? 'kg' : 'lbs';
+      
+      exercise.sets = exercise.sets.map(set => ({
+        ...set,
+        weight: convertWeight(set.weight, oldUnit, newUnit)
+      }));
+      exercise.unit = newUnit;
+      setActiveLog(newLog);
+    };
+
     return (
       <div className={`app ${darkMode ? 'dark' : ''}`}>
         <header className="app-header">
@@ -392,33 +421,69 @@ function App() {
             {darkMode ? <IconSun /> : <IconMoon />}
           </button>
         </header>
-        <div className="log-container">
-          <div className="log-header">
-            <button onClick={() => setActiveLog(null)} className="back-btn"><IconBack /></button>
+
+        <div className="log-card-wrapper">
+          <div className="log-card-header">
+            <button onClick={() => setActiveLog(null)} className="back-btn">
+              <IconBack />
+            </button>
             <h2>{activeLog.name}</h2>
           </div>
-          {activeLog.exercises.map((ex, exIdx) => (
-            <div key={ex.id} className="log-card">
-              <h3>{ex.name}</h3>
-              {ex.sets.map((set, setIdx) => (
-                <div key={setIdx} className="log-row">
-                  <span className="set-label">Set {setIdx + 1}</span>
-                  <input type="number" placeholder="Weight" value={set.weight} onChange={e => updateLog(exIdx, setIdx, 'weight', e.target.value)} />
-                  <input type="number" placeholder="Reps" value={set.reps} onChange={e => updateLog(exIdx, setIdx, 'reps', e.target.value)} />
-                  <button className={`check ${set.done ? 'done' : ''}`} onClick={() => toggleDone(exIdx, setIdx)}>
-                    {set.done && <IconCheck />}
-                    {!set.done && <span className="circle">○</span>}
-                  </button>
+
+          <div className="log-card-scroll">
+            {activeLog.exercises.map((ex, exIdx) => {
+              const currentUnit = ex.unit || 'lbs';
+              return (
+                <div key={ex.id} className="log-card-exercise">
+                  <div className="exercise-header-row">
+                    <h3>{ex.name}</h3>
+                    <button className="unit-toggle" onClick={() => toggleUnit(exIdx)}>
+                      {currentUnit}
+                    </button>
+                  </div>
+                  <div className="log-card-sets">
+                    {ex.sets.map((set, setIdx) => (
+                      <div key={setIdx} className="log-card-set">
+                        <span className="set-number">Set {setIdx + 1}</span>
+                        <div className="set-input-group">
+                          <input
+                            type="number"
+                            placeholder={currentUnit}
+                            value={set.weight}
+                            onChange={(e) => updateLog(exIdx, setIdx, 'weight', e.target.value)}
+                          />
+                          <span className="multiply">×</span>
+                          <input
+                            type="number"
+                            placeholder="reps"
+                            value={set.reps}
+                            onChange={(e) => updateLog(exIdx, setIdx, 'reps', e.target.value)}
+                          />
+                          <button
+                            className={`check-card ${set.done ? 'done' : ''}`}
+                            onClick={() => toggleDone(exIdx, setIdx)}
+                          >
+                            {set.done ? <IconCheck /> : '○'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          ))}
-          <button className="save-btn" onClick={saveLog}>Save Workout</button>
+              );
+            })}
+          </div>
+
+          <div className="log-card-button">
+            <button className="save-log-card" onClick={saveLog}>
+              Save Workout
+            </button>
+          </div>
         </div>
       </div>
     );
   }
-  
+
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
       <header className="app-header">
@@ -429,21 +494,53 @@ function App() {
           {darkMode ? <IconSun size={20} /> : <IconMoon size={20} />}
         </button>
       </header>
-      
+
       <div className="main-content">
         {page === 'home' && (
           <div className="home-page">
-            <div className="search-card">
-              <div className="search-label">Active Split</div>
-              <select value={activeSplitId || ''} onChange={e => setActiveSplitId(e.target.value)} className="split-select">
-                {Object.keys(splits).length === 0 ? (
-                  <option value="">No splits available</option>
-                ) : (
-                  Object.values(splits).map(s => <option key={s.id} value={s.id}>{s.name}</option>)
-                )}
-              </select>
-            </div>
-            
+<div className="split-dropdown" ref={dropdownRef}>
+  <div className="split-label">ACTIVE SPLIT</div>
+  <div className="split-selector-container">
+    {Object.keys(splits).length === 0 ? (
+      <div className="split-value no-splits" style={{ opacity: 0.6, cursor: 'default' }}>
+        <span>No splits available</span>
+      </div>
+    ) : (
+      <>
+        <button 
+          className="split-value" 
+          onClick={() => setModals(prev => ({ ...prev, splitDropdownOpen: !prev.splitDropdownOpen }))}
+        >
+          <span>{activeSplit?.name || 'Select Split'}</span>
+          <span className={`chevron-icon ${modals.splitDropdownOpen ? 'open' : ''}`}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </span>
+        </button>
+        
+        {modals.splitDropdownOpen && (
+          <div className="split-dropdown-menu">
+            {Object.values(splits).map(split => (
+              <div
+                key={split.id}
+                className={`split-dropdown-item ${split.id === activeSplitId ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveSplitId(split.id);
+                  setModals(prev => ({ ...prev, splitDropdownOpen: false }));
+                }}
+              >
+                <span>{split.name}</span>
+                {split.id === activeSplitId && <span className="check-mark">✓</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    )}
+  </div>
+</div>
+
             {!hasActiveSplit || Object.keys(splits).length === 0 ? (
               <div className="empty-card">
                 <div className="empty-icon">+</div>
@@ -468,7 +565,6 @@ function App() {
                   <span className="price-badge">{activeSplit.name}</span>
                 </div>
                 <div className="journey-title">{today.name}</div>
-                
                 <div className="route-info">
                   {today.exercises.map((ex, idx) => (
                     <div key={ex.id} className={`route-stop ${idx === today.exercises.length - 1 ? 'last' : ''}`}>
@@ -481,20 +577,19 @@ function App() {
                     </div>
                   ))}
                 </div>
-                
                 <button className="search-btn" onClick={() => startLog(today)}>Start Workout →</button>
               </div>
             )}
           </div>
         )}
-        
+
         {page === 'splits' && !editingSplit && (
           <div className="splits-page">
             <div className="page-header">
               <h2>Splits</h2>
               <button className="see-all" onClick={() => setModals({ ...modals, addSplit: true })}>+ New</button>
             </div>
-            
+
             {Object.keys(splits).length === 0 ? (
               <div className="empty-card">
                 <div className="empty-icon">📋</div>
@@ -524,7 +619,7 @@ function App() {
             )}
           </div>
         )}
-        
+
         {page === 'splits' && editingSplit && (
           <div className="edit-page">
             <div className="page-header">
@@ -532,7 +627,7 @@ function App() {
               <input value={editingSplit.name} onChange={e => setEditingSplit({ ...editingSplit, name: e.target.value })} className="edit-title" />
               <button className="see-all" onClick={() => setModals({ ...modals, addDay: true })}><IconPlus /> Day</button>
             </div>
-            
+
             {editingSplit.days.length === 0 ? (
               <div className="empty-card">
                 <div className="empty-icon">○</div>
@@ -546,7 +641,7 @@ function App() {
                     <input value={day.name} onChange={e => updateDayName(day.id, e.target.value)} className="day-input" />
                     <button onClick={() => setModals({ ...modals, delete: { type: 'day', id: day.id } })} className="icon-btn"><IconDelete /></button>
                   </div>
-                  
+
                   {day.exercises.map(ex => (
                     <div key={ex.id} className="exercise-edit-row">
                       <input value={ex.name} onChange={e => updateExercise(day.id, ex.id, 'name', e.target.value)} className="ex-input" />
@@ -558,23 +653,32 @@ function App() {
                       </div>
                     </div>
                   ))}
-                  
+
                   <button className="add-exercise-btn" onClick={() => setShowPicker(day.id)}>
                     <IconPlus /> Add Exercise
                   </button>
                 </div>
               ))
             )}
-            
+
             <button className="save-split-btn" onClick={() => updateSplit(editingSplit)}>Save Changes</button>
           </div>
         )}
-        
+
         {page === 'history' && (
           <div className="history-page">
             <div className="page-header">
               <h2>History</h2>
+              {logs.length > 0 && (
+                <button 
+                  className="clear-history-btn" 
+                  onClick={() => setModals(prev => ({ ...prev, clearHistory: true }))}
+                >
+                  Clear all
+                </button>
+              )}
             </div>
+
             {logs.length === 0 ? (
               <div className="empty-card">
                 <div className="empty-icon">○</div>
@@ -610,8 +714,8 @@ function App() {
           </div>
         )}
       </div>
-      
-      {/* Bottom Navigation - Updated with new icons */}
+
+      {/* Bottom Navigation */}
       <nav className="bottom-nav">
         <button className={`nav-item ${page === 'home' ? 'active' : ''}`} onClick={() => setPage('home')}>
           <IconWorkout />
@@ -626,8 +730,8 @@ function App() {
           <span>History</span>
         </button>
       </nav>
-      
-      {/* Modals - same as before */}
+
+      {/* ADD SPLIT MODAL – now navigates to edit page */}
       {modals.addSplit && (
         <div className="modal" onClick={() => setModals({ ...modals, addSplit: false, customSplit: false })}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -636,16 +740,49 @@ function App() {
             {!modals.customSplit ? (
               <>
                 <div className="template-list">
-                  {Object.keys(splitTemplates).map(templateName => (
-                    <button key={templateName} className="template-option" onClick={() => {
-                      setNewSplitType(templateName);
-                      addSplitFromTemplate();
-                    }}>
-                      <span>{templateName}</span>
-                      <span className="template-days">{splitTemplates[templateName].days.length} days</span>
-                    </button>
-                  ))}
-                  <button className="template-option custom-option" onClick={() => setModals({ ...modals, customSplit: true })}>
+                  {Object.keys(splitTemplates).map(templateName => {
+                    const template = splitTemplates[templateName];
+                    return (
+                      <button 
+                        key={templateName} 
+                        className="template-option" 
+                        onClick={() => {
+                          const id = template.type;
+                          if (splits[id]) {
+                            setModals({ ...modals, addSplit: false });
+                            return;
+                          }
+                          const newSplit = {
+                            id: id,
+                            name: templateName,
+                            type: template.type,
+                            days: template.days.map((day, idx) => ({
+                              id: Date.now().toString() + idx,
+                              name: day.name,
+                              exercises: day.exercises.map((ex, exIdx) => ({
+                                id: Date.now().toString() + idx + exIdx,
+                                name: ex,
+                                sets: 3,
+                                reps: '8-12'
+                              }))
+                            }))
+                          };
+                          setSplits(prev => ({ ...prev, [id]: newSplit }));
+                          setActiveSplitId(id);
+                          setEditingSplit(newSplit);
+                          setPage('splits');
+                          setModals({ ...modals, addSplit: false });
+                        }}
+                      >
+                        <span>{templateName}</span>
+                        <span className="template-days">{template.days.length} days</span>
+                      </button>
+                    );
+                  })}
+                  <button 
+                    className="template-option custom-option" 
+                    onClick={() => setModals({ ...modals, customSplit: true })}
+                  >
                     <span>Custom Split</span>
                     <span className="template-days">Create your own</span>
                   </button>
@@ -672,6 +809,7 @@ function App() {
         </div>
       )}
       
+      {/* ADD DAY MODAL */}
       {modals.addDay && (
         <div className="modal" onClick={() => setModals({ ...modals, addDay: false })}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -685,6 +823,7 @@ function App() {
         </div>
       )}
       
+      {/* DELETE CONFIRM MODAL */}
       {modals.delete && (
         <div className="modal" onClick={() => setModals({ ...modals, delete: null })}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -703,6 +842,25 @@ function App() {
         </div>
       )}
       
+      {/* CLEAR HISTORY CONFIRMATION MODAL */}
+      {modals.clearHistory && (
+        <div className="modal" onClick={() => setModals(prev => ({ ...prev, clearHistory: false }))}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h3>Clear History?</h3>
+            <p>All workout logs will be permanently deleted.</p>
+            <div className="modal-buttons">
+              <button className="modal-cancel" onClick={() => setModals(prev => ({ ...prev, clearHistory: false }))}>
+                Cancel
+              </button>
+              <button className="modal-delete" onClick={clearAllHistory}>
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* EXERCISE PICKER MODAL */}
       {showPicker && (
         <div className="modal" onClick={() => setShowPicker(null)}>
           <div className="modal-content picker-modal" onClick={e => e.stopPropagation()}>
