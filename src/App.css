@@ -1,23 +1,27 @@
 :root {
   /* Light mode */
-  --bg-primary: #f5f5f5;
+  --bg-primary: #EDEDED;
   --bg-secondary: #ffffff;
-  --accent: #1c1c1e;
-  --text-primary: #1a1a1a;
+  --accent: #222327;
+  --text-primary: #222327;
   --text-secondary: #8e8e93;
   --border: #e5e5ea;
-  --set-number-color: #1c1c1e;
+  --set-number-color: #222327;
+  /* Minimalist card shadow – soft, floating */
+  --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.04), 0 8px 20px rgba(0, 0, 0, 0.06);
 }
 
 .dark {
   /* Dark mode */
   --bg-primary: #1c1c1e;
-  --bg-secondary: #2c2c2e;
+  --bg-secondary: #222327;
   --accent: #f5f5f5;
   --text-primary: #ffffff;
   --text-secondary: #98989e;
   --border: #3a3a3c;
   --set-number-color: #f5f5f5;
+  /* Visible shadow on dark backgrounds */
+  --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 * {
@@ -81,7 +85,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
+  color: var(--accent);
   transition: all 0.2s;
 }
 
@@ -108,7 +112,7 @@ h3 {
   color: var(--text-primary);
 }
 
-/* Cards – Unified surface */
+/* Cards – Unified surface with minimalist drop shadows */
 .search-card,
 .journey-card,
 .split-card,
@@ -120,6 +124,7 @@ h3 {
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 20px;
+  box-shadow: var(--card-shadow);
 }
 
 .search-card {
@@ -301,13 +306,33 @@ h3 {
   gap: 8px;
 }
 
-.active-tag {
-  background: var(--accent);
-  color: var(--bg-primary);
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 500;
+/* Make the main app header sticky */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-primary);
+}
+
+/* Make the edit page header (back button, split name, +Day) sticky */
+.edit-page .page-header {
+  position: sticky;
+  top: 70px;
+  background: var(--bg-primary);
+  z-index: 9;
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Optional: smooth transition when sticky */
+.app-header, .edit-page .page-header {
+  transition: box-shadow 0.2s;
+}
+
+/* Add a subtle shadow when scrolled */
+.app-header.stuck, .edit-page .page-header.stuck {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .icon-btn {
@@ -451,7 +476,8 @@ h3 {
 }
 
 .save-split-btn {
-  margin-top: 8px;
+  margin-top: 4px;
+  margin-bottom: 14px;
 }
 
 /* History Page */
@@ -630,12 +656,16 @@ h3 {
 }
 
 .log-card-button {
-  padding: 16px;
-  background: var(--bg-primary);
-  border-top: 1px solid var(--border);
-  position: sticky;
+  position: fixed;
   bottom: 0;
-  z-index: 10;
+  left: 0;
+  right: 0;
+  max-width: 500px;
+  margin: 0 auto;
+  background: var(--bg-primary);
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  z-index: 20;
 }
 
 .save-log-card {
