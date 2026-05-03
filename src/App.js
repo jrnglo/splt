@@ -52,14 +52,8 @@ const splitTemplates = {
 
 // Vector Icons (unchanged)
 const IconWorkout = ({ size = 22 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 4L8 6" />
-    <path d="M18 4L16 6" />
-    <rect x="4" y="6" width="16" height="12" rx="2" />
-    <path d="M8 10H16" />
-    <path d="M8 14H12" />
-    <circle cx="17" cy="10" r="1.5" />
-    <circle cx="17" cy="14" r="1.5" />
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
   </svg>
 );
 
@@ -661,7 +655,7 @@ function App() {
               ))
             )}
 
-            <button className="save-split-btn" onClick={() => updateSplit(editingSplit)}>Save Changes</button>
+            <button className="save-split-btn" onClick={() => updateSplit(editingSplit)}>Save</button>
           </div>
         )}
 
